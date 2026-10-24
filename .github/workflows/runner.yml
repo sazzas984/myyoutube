@@ -11,7 +11,7 @@ on:
 jobs:
   run-browsers:
     runs-on: windows-latest
-    timeout-minutes: 25 # Safeguard to make sure it stops after max time
+    timeout-minutes: 25
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v4
@@ -44,7 +44,6 @@ jobs:
           def launch_browser_instance(instance_id):
               print(f"Starting browser instance {instance_id}...")
               options = Options()
-              # Options to ensure headless or stable running on CI windows runner
               options.add_argument("--no-sandbox")
               options.add_argument("--disable-dev-shm-usage")
               options.add_argument("--autoplay-policy=no-user-gesture-required")
@@ -52,9 +51,8 @@ jobs:
               driver = webdriver.Chrome(service=Service(ChromeDriverManager().install()), options=options)
               try:
                   driver.get(url)
-                  time.sleep(5) # Let page load
+                  time.sleep(5)
                   
-                  # Execute JS to force 2x speed and play video
                   script = """
                   var videos = document.querySelectorAll('video');
                   videos.forEach(function(v) {
@@ -73,7 +71,6 @@ jobs:
                   driver.quit()
                   print(f"Browser {instance_id} closed.")
 
-          # Run 4 browser instances concurrently using threads
           with ThreadPoolExecutor(max_workers=4) as executor:
               executor.map(launch_browser_instance, range(1, 5))
           
