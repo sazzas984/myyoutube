@@ -89,7 +89,7 @@ jobs:
                   });
                   """
                   driver.execute_script(script)
-                  print(f"Browser {instance_id} playing video at 2x speed.")
+                  print(f"Browser {instance_id} playing video at 4x speed.")
                   
                   # Keep alive for 20 minutes (1200 seconds)
                   time.sleep(1200)
