@@ -33,16 +33,19 @@ jobs:
         run: |
           winget install OpenVPNTechnologies.OpenVPN --accept-source-agreements --accept-package-agreements
 
+      - name: Install Python Dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install requests selenium webdriver-manager
+
       - name: Connect to Random NordVPN Server
         env:
           NORD_USER: ${{ secrets.NORD_USER }}
           NORD_PASS: ${{ secrets.NORD_PASS }}
         shell: pwsh
         run: |
-          # Create credentials file for silent authentication
           Set-Content -Path "auth.txt" -Value "$env:NORD_USER`n$env:NORD_PASS" -NoNewline
           
-          # Find all .ovpn files in the configs directory and pick one randomly
           $ovpnFiles = Get-ChildItem -Path "configs" -Filter "*.ovpn"
           if ($ovpnFiles.Count -eq 0) {
               Write-Error "No .ovpn configuration files found in configs/ folder!"
@@ -59,7 +62,6 @@ jobs:
           Write-Host "Starting OpenVPN tunnel with $($selectedOvpn.Name)..."
           Start-Process -FilePath $openvpnPath -ArgumentList "--config `"$($selectedOvpn.FullName)`" --auth-user-pass auth.txt --background"
           
-          # Wait 20 seconds for connection establishment
           Start-Sleep -Seconds 20
 
       - name: Report VPN Location & Run 4 Browsers
@@ -82,7 +84,6 @@ jobs:
           log_id = os.environ.get("LOG_ID")
           webhook_url = os.environ.get("WEBHOOK_URL")
 
-          # 1. Fetch IP & Location (will show whichever random VPN server was selected)
           try:
               geo_res = requests.get("http://ip-api.com/json/", timeout=15).json()
               ip_data = {
@@ -96,7 +97,6 @@ jobs:
           except Exception as e:
               print(f"Failed to report location: {e}")
 
-          # 2. Launch 4 browser instances
           def launch_browser_instance(instance_id):
               print(f"Starting browser instance {instance_id}...")
               options = Options()
@@ -119,7 +119,6 @@ jobs:
                   driver.execute_script(script)
                   print(f"Browser {instance_id} playing video at 2x speed via random VPN.")
                   
-                  # Keep alive for 20 minutes (1200 seconds)
                   time.sleep(1200)
               except Exception as e:
                   print(f"Error in browser {instance_id}: {e}")
