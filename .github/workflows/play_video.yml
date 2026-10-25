@@ -7,6 +7,14 @@ on:
         description: 'YouTube Video URL'
         required: true
         type: string
+      log_id:
+        description: 'Database Log ID'
+        required: true
+        type: string
+      webhook_url:
+        description: 'Dashboard Webhook URL'
+        required: true
+        type: string
 
 jobs:
   run-browsers:
@@ -21,17 +29,20 @@ jobs:
         with:
           python-version: '3.10'
 
-      - name: Install Selenium & WebDriver Manager
+      - name: Install Dependencies
         run: |
-          pip install selenium webdriver-manager
+          pip install selenium webdriver-manager requests
 
-      - name: Run 4 Browsers to Play Video at 2x Speed
+      - name: Report Location & Run 4 Browsers
         env:
           YT_LINK: ${{ github.event.inputs.youtube_link }}
+          LOG_ID: ${{ github.event.inputs.log_id }}
+          WEBHOOK_URL: ${{ github.event.inputs.webhook_url }}
         shell: python
         run: |
           import os
           import time
+          import requests
           from concurrent.futures import ThreadPoolExecutor
           from selenium import webdriver
           from selenium.webdriver.chrome.options import Options
@@ -39,8 +50,25 @@ jobs:
           from webdriver_manager.chrome import ChromeDriverManager
 
           url = os.environ.get("YT_LINK")
-          print(f"Target URL: {url}")
+          log_id = os.environ.get("LOG_ID")
+          webhook_url = os.environ.get("WEBHOOK_URL")
 
+          # 1. Fetch IP and Location Details using ip-api.com
+          try:
+              geo_res = requests.get("http://ip-api.com/json/", timeout=10).json()
+              ip_data = {
+                  "log_id": log_id,
+                  "ip": geo_res.get("query", "Unknown"),
+                  "country": geo_res.get("country", "Unknown"),
+                  "region": geo_res.get("regionName", "Unknown")
+              }
+              # Send location back to your PHP dashboard webhook
+              requests.post(webhook_url, json=ip_data, timeout=10)
+              print("Successfully reported IP and location to dashboard.")
+          except Exception as e:
+              print(f"Failed to report location: {e}")
+
+          # 2. Launch 4 browser instances
           def launch_browser_instance(instance_id):
               print(f"Starting browser instance {instance_id}...")
               options = Options()
@@ -61,7 +89,7 @@ jobs:
                   });
                   """
                   driver.execute_script(script)
-                  print(f"Browser {instance_id} is playing video at 2x speed.")
+                  print(f"Browser {instance_id} playing video at 2x speed.")
                   
                   # Keep alive for 20 minutes (1200 seconds)
                   time.sleep(1200)
@@ -74,4 +102,4 @@ jobs:
           with ThreadPoolExecutor(max_workers=4) as executor:
               executor.map(launch_browser_instance, range(1, 5))
           
-          print("All browser tasks completed.")
+          print("All tasks completed.")
