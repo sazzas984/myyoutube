@@ -1,4 +1,4 @@
-name: Play YouTube Video RDP
+name: Play YouTube Video RDP with Random NordVPN
 
 on:
   workflow_dispatch:
@@ -29,11 +29,40 @@ jobs:
         with:
           python-version: '3.10'
 
-      - name: Install Dependencies
+      - name: Install OpenVPN
         run: |
-          pip install selenium webdriver-manager requests
+          winget install OpenVPNTechnologies.OpenVPN --accept-source-agreements --accept-package-agreements
 
-      - name: Report Location & Run 4 Browsers
+      - name: Connect to Random NordVPN Server
+        env:
+          NORD_USER: ${{ secrets.NORD_USER }}
+          NORD_PASS: ${{ secrets.NORD_PASS }}
+        shell: pwsh
+        run: |
+          # Create credentials file for silent authentication
+          Set-Content -Path "auth.txt" -Value "$env:NORD_USER`n$env:NORD_PASS" -NoNewline
+          
+          # Find all .ovpn files in the configs directory and pick one randomly
+          $ovpnFiles = Get-ChildItem -Path "configs" -Filter "*.ovpn"
+          if ($ovpnFiles.Count -eq 0) {
+              Write-Error "No .ovpn configuration files found in configs/ folder!"
+              exit 1
+          }
+          $selectedOvpn = $ovpnFiles | Get-Random
+          Write-Host "Selected Random VPN Location File: $($selectedOvpn.Name)"
+          
+          $openvpnPath = "C:\Program Files\OpenVPN\bin\openvpn.exe"
+          if (!(Test-Path $openvpnPath)) {
+              $openvpnPath = "C:\Program Files (x86)\OpenVPN\bin\openvpn.exe"
+          }
+          
+          Write-Host "Starting OpenVPN tunnel with $($selectedOvpn.Name)..."
+          Start-Process -FilePath $openvpnPath -ArgumentList "--config `"$($selectedOvpn.FullName)`" --auth-user-pass auth.txt --background"
+          
+          # Wait 20 seconds for connection establishment
+          Start-Sleep -Seconds 20
+
+      - name: Report VPN Location & Run 4 Browsers
         env:
           YT_LINK: ${{ github.event.inputs.youtube_link }}
           LOG_ID: ${{ github.event.inputs.log_id }}
@@ -53,18 +82,17 @@ jobs:
           log_id = os.environ.get("LOG_ID")
           webhook_url = os.environ.get("WEBHOOK_URL")
 
-          # 1. Fetch IP and Location Details using ip-api.com
+          # 1. Fetch IP & Location (will show whichever random VPN server was selected)
           try:
-              geo_res = requests.get("http://ip-api.com/json/", timeout=10).json()
+              geo_res = requests.get("http://ip-api.com/json/", timeout=15).json()
               ip_data = {
                   "log_id": log_id,
                   "ip": geo_res.get("query", "Unknown"),
                   "country": geo_res.get("country", "Unknown"),
                   "region": geo_res.get("regionName", "Unknown")
               }
-              # Send location back to your PHP dashboard webhook
               requests.post(webhook_url, json=ip_data, timeout=10)
-              print("Successfully reported IP and location to dashboard.")
+              print("Successfully reported random VPN location to dashboard:", ip_data)
           except Exception as e:
               print(f"Failed to report location: {e}")
 
@@ -89,7 +117,7 @@ jobs:
                   });
                   """
                   driver.execute_script(script)
-                  print(f"Browser {instance_id} playing video at 4x speed.")
+                  print(f"Browser {instance_id} playing video at 2x speed via random VPN.")
                   
                   # Keep alive for 20 minutes (1200 seconds)
                   time.sleep(1200)
